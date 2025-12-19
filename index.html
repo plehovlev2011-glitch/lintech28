@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>5 изображений</title>
+    <style>
+        /* Базовые стили */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+        }
+        
+        html, body {
+            overflow-x: hidden;
+            background: #000;
+            height: 100%;
+            position: relative;
+        }
+        
+        body {
+            overflow-y: auto;
+            padding-bottom: 80px; /* Отступ для фиксированной навигации */
+        }
+        
+        /* Прелоадер */
+        .preloader {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            transition: opacity 0.5s ease;
+        }
+        
+        .preloader.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+        
+        .loader-gif {
+            width: 80px;
+            height: 80px;
+        }
+        
+        /* Контейнер для изображений */
+        .image-container {
+            width: 100vw;
+            background: #000;
+            opacity: 0;
+            transform: translateY(30px);
+            transition: opacity 0.8s ease, transform 0.8s ease;
+        }
+        
+        .image-container.loaded {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        
+        /* Стили для изображений */
+        .image-container img {
+            width: 100%;
+            height: auto;
+            display: block;
+            cursor: pointer;
+            transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+            pointer-events: none; /* Защита от копирования */
+        }
+        
+        /* Защитный слой для предотвращения копирования */
+        .protection-layer {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 9999;
+            pointer-events: none;
+        }
+        
+        /* Фиксированная навигация внизу */
+        .fixed-navbar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            z-index: 100;
+            pointer-events: none; /* Изображение не кликабельно */
+        }
+        
+        .fixed-navbar img {
+            width: 100%;
+            height: auto;
+            display: block;
+            pointer-events: none;
+        }
+        
+        /* Эффекты для изображений при нажатии (если будут ссылки) */
+        .clickable-image {
+            pointer-events: auto !important;
+        }
+        
+        .clickable-image:active {
+            transform: translateY(4px) scale(0.98);
+        }
+    </style>
+</head>
+<body>
+    <!-- Защитный слой для предотвращения копирования -->
+    <div class="protection-layer"></div>
+    
+    <!-- Прелоадер -->
+    <div class="preloader" id="preloader">
+        <img src="loadgif.gif" alt="Загрузка" class="loader-gif">
+    </div>
+
+    <!-- Основной контент - 5 изображений -->
+    <div class="image-container" id="imageContainer">
+        <!-- Здесь будут ваши 5 изображений -->
+        <img src="1.png" alt="Изображение 1" class="content-image">
+        <img src="2.png" alt="Изображение 2" class="content-image">
+        <img src="3.png" alt="Изображение 3" class="content-image">
+        <img src="4.png" alt="Изображение 4" class="content-image">
+        <img src="5.png" alt="Изображение 5" class="content-image">
+    </div>
+    
+    <!-- Фиксированная навигация внизу -->
+    <div class="fixed-navbar">
+        <img src="navbar.png" alt="Навигация">
+    </div>
+
+    <script>
+        // Защита от открытия консоли
+        (function() {
+            // Метод 1: Обнаружение открытия консоли
+            function detectDevTools() {
+                const threshold = 160; // Разница в ширине экрана
+                const widthThreshold = window.outerWidth - window.innerWidth > threshold;
+                const heightThreshold = window.outerHeight - window.innerHeight > threshold;
+                
+                if (widthThreshold || heightThreshold) {
+                    // Очищаем весь контент страницы
+                    document.body.innerHTML = '';
+                    document.head.innerHTML = '';
+                    document.documentElement.innerHTML = '';
+                    // Блокируем дальнейшие действия
+                    window.stop();
+                    return true;
+                }
+                return false;
+            }
+            
+            // Метод 2: Проверка на F12 и другие клавиши
+            document.onkeydown = function(e) {
+                // F12, Ctrl+Shift+I, Ctrl+Shift+J, Ctrl+U
+                if (e.keyCode === 123 || 
+                   (e.ctrlKey && e.shiftKey && (e.keyCode === 73 || e.keyCode === 74)) ||
+                   (e.ctrlKey && e.keyCode === 85)) {
+                    e.preventDefault();
+                    // Очищаем контент
+                    document.body.innerHTML = '';
+                    document.head.innerHTML = '';
+                    return false;
+                }
+            };
+            
+            // Метод 3: Запрет контекстного меню
+            document.addEventListener('contextmenu', function(e) {
+                e.preventDefault();
+                return false;
+            });
+            
+            // Метод 4: Регулярная проверка
+            setInterval(detectDevTools, 1000);
+            
+            // Метод 5: Защита от копирования через буфер обмена
+            document.addEventListener('copy', function(e) {
+                e.preventDefault();
+                e.clipboardData.setData('text/plain', 'Копирование запрещено');
+                return false;
+            });
+            
+            // Метод 6: Защита от перетаскивания изображений
+            document.addEventListener('dragstart', function(e) {
+                if (e.target.tagName === 'IMG') {
+                    e.preventDefault();
+                    return false;
+                }
+            });
+            
+            // Метод 7: Предотвращаем просмотр исходного кода
+            document.onkeypress = function(e) {
+                if (e.ctrlKey && (e.keyCode === 117 || e.keyCode === 85)) {
+                    return false;
+                }
+            };
+        })();
+
+        // Загрузка изображений
+        window.addEventListener('load', function() {
+            const images = document.querySelectorAll('.content-image');
+            const totalImages = images.length;
+            let loadedImages = 0;
+            const preloader = document.getElementById('preloader');
+            const imageContainer = document.getElementById('imageContainer');
+            
+            function imageLoaded() {
+                loadedImages++;
+                if (loadedImages === totalImages) {
+                    setTimeout(function() {
+                        preloader.classList.add('hidden');
+                        imageContainer.classList.add('loaded');
+                    }, 300);
+                }
+            }
+            
+            // Проверяем загрузку каждого изображения
+            images.forEach(img => {
+                if (img.complete) {
+                    imageLoaded();
+                } else {
+                    img.addEventListener('load', imageLoaded);
+                    img.addEventListener('error', imageLoaded);
+                }
+            });
+            
+            // Если все изображения уже загружены
+            if (loadedImages === totalImages) {
+                setTimeout(function() {
+                    preloader.classList.add('hidden');
+                    imageContainer.classList.add('loaded');
+                }, 300);
+            }
+            
+            // На всякий случай, таймаут для прелоадера
+            setTimeout(function() {
+                preloader.classList.add('hidden');
+                imageContainer.classList.add('loaded');
+            }, 5000);
+        });
+
+        // Дополнительная защита: делаем изображения не выделяемыми
+        document.addEventListener('DOMContentLoaded', function() {
+            const allImages = document.querySelectorAll('img');
+            allImages.forEach(img => {
+                img.setAttribute('draggable', 'false');
+                img.style.pointerEvents = 'none';
+            });
+            
+            // Делаем фиксированную навигацию всегда видимой
+            const navbar = document.querySelector('.fixed-navbar');
+            navbar.style.display = 'block';
+        });
+
+        // Защита от инспектирования элементов
+        Object.defineProperty(document, 'visibilityState', {
+            get: function() {
+                return 'visible';
+            },
+            configurable: false
+        });
+        
+        Object.defineProperty(document, 'hidden', {
+            get: function() {
+                return false;
+            },
+            configurable: false
+        });
+        
+        // Перехват ошибок для скрытия информации
+        window.onerror = function(message, source, lineno, colno, error) {
+            return true; // Подавляем вывод ошибок в консоль
+        };
+        
+        // Блокировка клавиш Print Screen
+        document.addEventListener('keydown', function(e) {
+            if (e.keyCode === 44) { // Print Screen
+                e.preventDefault();
+                return false;
+            }
+        });
+        
+        // Запрет на сохранение страницы
+        document.addEventListener('beforeunload', function(e) {
+            // Не даем сохранить страницу
+        });
+    </script>
+</body>
+</html>
