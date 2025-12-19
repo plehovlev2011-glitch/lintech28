@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Новый Электронный Дневник - Школа 28</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* Полные стили из предыдущего примера */
+        /* ... все стили которые я показывал ранее ... */
+    </style>
+</head>
+<body>
+    <div id="loginPage" class="page active">
+        <div class="login-container">
+            <div class="login-card">
+                <div class="logo">
+                    <i class="fas fa-graduation-cap"></i>
+                    <h1>Школа №28</h1>
+                    <p>Новый электронный дневник</p>
+                </div>
+                
+                <form id="loginForm">
+                    <div class="input-group">
+                        <i class="fas fa-user"></i>
+                        <input type="text" id="username" placeholder="Логин" required>
+                    </div>
+                    
+                    <div class="input-group">
+                        <i class="fas fa-lock"></i>
+                        <input type="password" id="password" placeholder="Пароль" required>
+                    </div>
+                    
+                    <button type="submit" class="login-btn">
+                        <i class="fas fa-sign-in-alt"></i> Войти
+                    </button>
+                    
+                    <div id="loginError" class="error-message"></div>
+                </form>
+                
+                <div class="login-footer">
+                    <p>Используйте те же данные, что и в старом дневнике</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="mainPage" class="page">
+        <!-- Весь интерфейс дневника из предыдущего примера -->
+    </div>
+
+    <script>
+        // Авторизация
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const errorDiv = document.getElementById('loginError');
+            
+            try {
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ login: username, password: password })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Сохраняем данные пользователя
+                    localStorage.setItem('user', JSON.stringify(data.user));
+                    
+                    // Показываем основной интерфейс
+                    document.getElementById('loginPage').classList.remove('active');
+                    document.getElementById('mainPage').classList.add('active');
+                    
+                    // Загружаем данные
+                    loadUserData(data.user);
+                } else {
+                    errorDiv.textContent = data.error || 'Ошибка входа';
+                }
+            } catch (error) {
+                errorDiv.textContent = 'Ошибка соединения с сервером';
+            }
+        });
+        
+        // Загрузка данных пользователя
+        async function loadUserData(user) {
+            // Обновляем шапку
+            document.getElementById('studentName').textContent = user.fullName;
+            document.getElementById('className').textContent = `Класс: ${user.classId}`;
+            
+            // Загружаем оценки
+            const marks = await fetchData('marks', user);
+            displayMarks(marks);
+            
+            // Загружаем сообщения
+            const messages = await fetchData('messages', user);
+            displayMessages(messages);
+            
+            // Загружаем расписание
+            const timetable = await fetchData('timetable', user);
+            displayTimetable(timetable);
+            
+            // Загружаем предметы
+            const subjects = await fetchData('subjects', user);
+            displaySubjects(subjects);
+        }
+        
+        // Функция получения данных
+        async function fetchData(type, user) {
+            try {
+                const response = await fetch(`/api/data/${type}`, {
+                    headers: {
+                        'X-User-Id': user.studentId,
+                        'X-Class-Id': user.classId
+                    }
+                });
+                return await response.json();
+            } catch (error) {
+                console.error(`Ошибка загрузки ${type}:`, error);
+                return [];
+            }
+        }
+        
+        // Функции отображения данных
+        function displayMarks(marks) {
+            const container = document.getElementById('marksContent');
+            if (!marks || marks.length === 0) {
+                container.innerHTML = '<p class="no-data">Нет оценок</p>';
+                return;
+            }
+            
+            let html = '<div class="marks-grid">';
+            marks.forEach(item => {
+                // Парсим оценки из формата АИАС
+                const marksHtml = item.marks_154 || item.marks_262 || '';
+                const cleanMarks = marksHtml.replace(/<[^>]*>/g, '')
+                    .replace(/&nbsp;/g, ' ')
+                    .trim()
+                    .split(/\s+/)
+                    .filter(m => m);
+                
+                html += `
+                    <div class="subject-card">
+                        <div class="subject-header">
+                            <h3>${item.subject}</h3>
+                            <span class="teacher">${item.teacher}</span>
+                        </div>
+                        <div class="marks-list">
+                            ${cleanMarks.map(mark => `
+                                <span class="mark ${mark === '2' || mark === '1' ? 'bad' : ''}">
+                                    ${mark}
+                                </span>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            });
+            html += '</div>';
+            container.innerHTML = html;
+        }
+        
+        // Аналогичные функции для других типов данных...
+    </script>
+</body>
+</html>
