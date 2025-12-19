@@ -1,109 +1,135 @@
-import axios from 'axios';
+const axios = require('axios');
 
-// Кэш для сессий (в памяти, на Vercel лучше Redis)
+// Временное хранилище сессий (в продакшене нужен Redis)
 const sessions = new Map();
 
-export default async function handler(req, res) {
+module.exports = async (req, res) => {
+  // Разрешаем CORS
+  res.setHeader('Access-Control-Allow-Credentials', true);
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
+  res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version');
+  
+  if (req.method === 'OPTIONS') {
+    res.status(200).end();
+    return;
+  }
+
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
+    return res.status(405).json({ error: 'Метод не разрешен' });
   }
 
   try {
     const { login, password } = req.body;
     
-    // 1. Авторизация в АИАС АВЕРС
-    const loginResponse = await axios.post(
-      'https://journal.school28-kirov.ru/auth',
-      new URLSearchParams({
-        l: login,
-        p: password,
-        s: '28'
-      }),
+    console.log('Попытка входа для:', login);
+    
+    // 1. Пробуем авторизоваться в АИАС АВЕРС
+    // Сначала получим куки (иногда нужен GET запрос сначала)
+    const initResponse = await axios.get(
+      'https://journal.school28-kirov.ru',
       {
         headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'User-Agent': 'Mozilla/5.0'
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
         }
       }
     );
-
-    // 2. Получаем куки сессии
-    const cookies = loginResponse.headers['set-cookie'];
-    const sessionId = Math.random().toString(36).substring(2);
     
-    // 3. Получаем данные пользователя
-    const userData = await getUserData(cookies, login);
+    // 2. Пробуем разные варианты входа
+    const loginPayload = new URLSearchParams();
+    loginPayload.append('l', login);
+    loginPayload.append('p', password);
     
-    // 4. Сохраняем сессию
-    sessions.set(sessionId, {
-      cookies,
-      userData,
-      timestamp: Date.now()
-    });
-
-    // 5. Отправляем ответ
-    res.setHeader('Set-Cookie', `session=${sessionId}; Path=/; HttpOnly; SameSite=Strict; Max-Age=86400`);
-    res.status(200).json({
-      success: true,
-      user: {
-        login,
-        fullName: userData.fullName || login,
-        studentId: userData.studentId,
-        classId: userData.classId
-      }
-    });
-
-  } catch (error) {
-    console.error('Auth error:', error.message);
-    res.status(401).json({ 
-      success: false, 
-      error: 'Неверный логин или пароль' 
-    });
-  }
-}
-
-async function getUserData(cookies, login) {
-  try {
-    // Пробуем разные методы получения данных пользователя
-    const actions = [
-      'GET_USER_INFO',
-      'GET_STUDENT_INFO',
-      'GET_STUDENT_DATA'
-    ];
-
-    for (const action of actions) {
-      try {
-        const response = await axios.post(
-          'https://journal.school28-kirov.ru/act/',
-          new URLSearchParams({ action }),
-          {
-            headers: {
-              'Cookie': cookies,
-              'Content-Type': 'application/x-www-form-urlencoded'
-            }
-          }
-        );
-
-        if (response.data && response.data.length > 0) {
-          return {
-            studentId: response.data[0].studentId || login,
-            classId: response.data[0].classId || 1000,
-            fullName: response.data[0].fullName || login
-          };
-        }
-      } catch (e) {
-        continue;
-      }
+    // Иногда нужен параметр 's' - код школы
+    if (login.includes('@') || login.length > 10) {
+      // Вероятно, это email или длинный логин
+      loginPayload.append('s', '28');
     }
-
-    // Если не нашли данные, возвращаем дефолтные
-    return {
-      studentId: login,
+    
+    const loginResponse = await axios.post(
+      'https://journal.school28-kirov.ru/auth',
+      loginPayload.toString(),
+      {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'Cookie': initResponse.headers['set-cookie'] || ''
+        },
+        maxRedirects: 5
+      }
+    );
+    
+    // 3. Проверяем успешность входа
+    const responseText = loginResponse.data;
+    const cookies = loginResponse.headers['set-cookie'];
+    
+    if (!cookies || responseText.includes('Неверный логин') || responseText.includes('Ошибка')) {
+      throw new Error('Неверные учетные данные');
+    }
+    
+    // 4. Генерируем сессию
+    const sessionId = require('crypto').randomBytes(32).toString('hex');
+    
+    // 5. Пробуем получить данные пользователя
+    let userData = {
+      login: login,
+      studentId: 4477, // По умолчанию, будет уточнено
       classId: 1000,
       fullName: login
     };
-
+    
+    // Пробуем найти studentId в куках
+    const cookieStr = Array.isArray(cookies) ? cookies.join('; ') : cookies;
+    if (cookieStr.includes('ys-userId')) {
+      const match = cookieStr.match(/ys-userId=[^;]+/);
+      if (match) {
+        const value = decodeURIComponent(match[0].split('=')[1]);
+        if (value.includes('n:')) {
+          userData.studentId = parseInt(value.split(':')[1]) || 4477;
+        }
+      }
+    }
+    
+    // 6. Сохраняем сессию
+    sessions.set(sessionId, {
+      cookies: cookieStr,
+      userData: userData,
+      timestamp: Date.now()
+    });
+    
+    // 7. Очищаем старые сессии (каждые 100)
+    if (sessions.size > 100) {
+      const now = Date.now();
+      for (const [key, session] of sessions.entries()) {
+        if (now - session.timestamp > 24 * 60 * 60 * 1000) { // 24 часа
+          sessions.delete(key);
+        }
+      }
+    }
+    
+    // 8. Отправляем ответ
+    res.setHeader('Set-Cookie', `session=${sessionId}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${24 * 60 * 60}`);
+    
+    res.status(200).json({
+      success: true,
+      user: userData,
+      sessionId: sessionId
+    });
+    
   } catch (error) {
-    throw error;
+    console.error('Auth error:', error.message);
+    
+    // Более информативные ошибки
+    let errorMessage = 'Ошибка входа';
+    if (error.message.includes('401') || error.message.includes('Неверные')) {
+      errorMessage = 'Неверный логин или пароль';
+    } else if (error.message.includes('network') || error.message.includes('ECONN')) {
+      errorMessage = 'Проблемы с соединением. Попробуйте позже';
+    }
+    
+    res.status(401).json({ 
+      success: false, 
+      error: errorMessage 
+    });
   }
-}
+};
