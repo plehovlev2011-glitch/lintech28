@@ -1,168 +1,152 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="ru" class="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Новый Электронный Дневник - Школа 28</title>
+    <title>Новый Дневник - Школа 28</title>
+    <link rel="stylesheet" href="/style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <style>
-        /* Полные стили из предыдущего примера */
-        /* ... все стили которые я показывал ранее ... */
-    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📚</text></svg>">
 </head>
-<body>
-    <div id="loginPage" class="page active">
-        <div class="login-container">
-            <div class="login-card">
-                <div class="logo">
-                    <i class="fas fa-graduation-cap"></i>
-                    <h1>Школа №28</h1>
-                    <p>Новый электронный дневник</p>
-                </div>
-                
-                <form id="loginForm">
-                    <div class="input-group">
-                        <i class="fas fa-user"></i>
-                        <input type="text" id="username" placeholder="Логин" required>
-                    </div>
-                    
-                    <div class="input-group">
-                        <i class="fas fa-lock"></i>
-                        <input type="password" id="password" placeholder="Пароль" required>
-                    </div>
-                    
-                    <button type="submit" class="login-btn">
-                        <i class="fas fa-sign-in-alt"></i> Войти
-                    </button>
-                    
-                    <div id="loginError" class="error-message"></div>
-                </form>
-                
-                <div class="login-footer">
-                    <p>Используйте те же данные, что и в старом дневнике</p>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <div id="mainPage" class="page">
-        <!-- Весь интерфейс дневника из предыдущего примера -->
+<body class="bg-gray-50">
+    <div id="app" class="min-h-screen">
+        <!-- Логин будет загружен динамически -->
     </div>
 
     <script>
-        // Авторизация
-        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+        // Проверяем авторизацию
+        async function checkAuth() {
+            try {
+                const response = await fetch('/api/data?type=info', {
+                    credentials: 'include'
+                });
+                
+                if (response.ok) {
+                    // Пользователь авторизован - показываем дашборд
+                    loadDashboard();
+                } else {
+                    // Не авторизован - показываем логин
+                    loadLogin();
+                }
+            } catch (error) {
+                // Ошибка сети - показываем логин
+                loadLogin();
+            }
+        }
+        
+        // Загружаем страницу логина
+        async function loadLogin() {
+            const response = await fetch('/login.html');
+            const html = await response.text();
+            document.getElementById('app').innerHTML = html;
+            
+            // Назначаем обработчик формы
+            setTimeout(() => {
+                const form = document.getElementById('loginForm');
+                if (form) {
+                    form.addEventListener('submit', handleLogin);
+                }
+            }, 100);
+        }
+        
+        // Обработчик входа
+        async function handleLogin(e) {
             e.preventDefault();
             
-            const username = document.getElementById('username').value;
-            const password = document.getElementById('password').value;
+            const form = e.target;
+            const login = form.querySelector('#username').value;
+            const password = form.querySelector('#password').value;
             const errorDiv = document.getElementById('loginError');
+            const submitBtn = form.querySelector('button[type="submit"]');
+            
+            // Показываем загрузку
+            const originalText = submitBtn.innerHTML;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Вход...';
+            submitBtn.disabled = true;
             
             try {
-                const response = await fetch('/api/login', {
+                const response = await fetch('/api/auth', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ login: username, password: password })
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ login, password }),
+                    credentials: 'include'
                 });
                 
                 const data = await response.json();
                 
                 if (data.success) {
-                    // Сохраняем данные пользователя
-                    localStorage.setItem('user', JSON.stringify(data.user));
-                    
-                    // Показываем основной интерфейс
-                    document.getElementById('loginPage').classList.remove('active');
-                    document.getElementById('mainPage').classList.add('active');
-                    
-                    // Загружаем данные
-                    loadUserData(data.user);
+                    // Успешный вход
+                    showToast('Вход выполнен успешно!', 'success');
+                    setTimeout(() => loadDashboard(), 1000);
                 } else {
+                    // Ошибка входа
                     errorDiv.textContent = data.error || 'Ошибка входа';
+                    errorDiv.style.display = 'block';
+                    submitBtn.innerHTML = originalText;
+                    submitBtn.disabled = false;
                 }
             } catch (error) {
                 errorDiv.textContent = 'Ошибка соединения с сервером';
+                errorDiv.style.display = 'block';
+                submitBtn.innerHTML = originalText;
+                submitBtn.disabled = false;
             }
-        });
-        
-        // Загрузка данных пользователя
-        async function loadUserData(user) {
-            // Обновляем шапку
-            document.getElementById('studentName').textContent = user.fullName;
-            document.getElementById('className').textContent = `Класс: ${user.classId}`;
-            
-            // Загружаем оценки
-            const marks = await fetchData('marks', user);
-            displayMarks(marks);
-            
-            // Загружаем сообщения
-            const messages = await fetchData('messages', user);
-            displayMessages(messages);
-            
-            // Загружаем расписание
-            const timetable = await fetchData('timetable', user);
-            displayTimetable(timetable);
-            
-            // Загружаем предметы
-            const subjects = await fetchData('subjects', user);
-            displaySubjects(subjects);
         }
         
-        // Функция получения данных
-        async function fetchData(type, user) {
+        // Загружаем дашборд
+        async function loadDashboard() {
+            const response = await fetch('/dashboard.html');
+            const html = await response.text();
+            document.getElementById('app').innerHTML = html;
+            
+            // Инициализируем дашборд
+            setTimeout(() => {
+                initDashboard();
+            }, 100);
+        }
+        
+        // Инициализация дашборда
+        async function initDashboard() {
+            // Загружаем данные
+            await loadUserData();
+            setupEventListeners();
+        }
+        
+        // Загружаем данные пользователя
+        async function loadUserData() {
+            // Показать загрузку
+            showLoading();
+            
             try {
-                const response = await fetch(`/api/data/${type}`, {
-                    headers: {
-                        'X-User-Id': user.studentId,
-                        'X-Class-Id': user.classId
-                    }
+                // Загружаем оценки
+                const marksResponse = await fetch('/api/data?type=marks', {
+                    credentials: 'include'
                 });
-                return await response.json();
-            } catch (error) {
-                console.error(`Ошибка загрузки ${type}:`, error);
-                return [];
-            }
-        }
-        
-        // Функции отображения данных
-        function displayMarks(marks) {
-            const container = document.getElementById('marksContent');
-            if (!marks || marks.length === 0) {
-                container.innerHTML = '<p class="no-data">Нет оценок</p>';
-                return;
-            }
-            
-            let html = '<div class="marks-grid">';
-            marks.forEach(item => {
-                // Парсим оценки из формата АИАС
-                const marksHtml = item.marks_154 || item.marks_262 || '';
-                const cleanMarks = marksHtml.replace(/<[^>]*>/g, '')
-                    .replace(/&nbsp;/g, ' ')
-                    .trim()
-                    .split(/\s+/)
-                    .filter(m => m);
+                const marks = await marksResponse.json();
                 
-                html += `
-                    <div class="subject-card">
-                        <div class="subject-header">
-                            <h3>${item.subject}</h3>
-                            <span class="teacher">${item.teacher}</span>
-                        </div>
-                        <div class="marks-list">
-                            ${cleanMarks.map(mark => `
-                                <span class="mark ${mark === '2' || mark === '1' ? 'bad' : ''}">
-                                    ${mark}
-                                </span>
-                            `).join('')}
-                        </div>
-                    </div>
-                `;
-            });
-            html += '</div>';
-            container.innerHTML = html;
+                // Отображаем данные
+                displayMarks(marks);
+                
+                // Скрыть загрузку
+                hideLoading();
+                
+            } catch (error) {
+                console.error('Error loading data:', error);
+                hideLoading();
+                showToast('Ошибка загрузки данных', 'error');
+            }
         }
         
-        // Аналогичные функции для других типов данных...
+        // Показываем уведомление
+        function showToast(message, type = 'info') {
+            // Реализация тоста
+        }
+        
+        // Запускаем приложение
+        checkAuth();
     </script>
 </body>
 </html>
