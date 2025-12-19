@@ -20,7 +20,7 @@
         
         html, body {
             overflow-x: hidden;
-            background: #000;
+            background: #ffffff; /* Белый фон */
             height: 100%;
             position: relative;
         }
@@ -37,7 +37,7 @@
             left: 0;
             width: 100vw;
             height: 100vh;
-            background: #000;
+            background: #ffffff; /* Белый фон прелоадера */
             display: flex;
             align-items: center;
             justify-content: center;
@@ -50,15 +50,15 @@
             pointer-events: none;
         }
         
-        .loader-gif {
-            width: 80px;
-            height: 80px;
+        .loader-img {
+            width: 100px;
+            height: 100px;
         }
         
         /* Контейнер для изображений */
         .image-container {
             width: 100vw;
-            background: #000;
+            background: #ffffff; /* Белый фон контейнера */
             opacity: 0;
             transform: translateY(30px);
             transition: opacity 0.8s ease, transform 0.8s ease;
@@ -123,7 +123,7 @@
     
     <!-- Прелоадер -->
     <div class="preloader" id="preloader">
-        <img src="loadgif.gif" alt="Загрузка" class="loader-gif">
+        <img src="pre.png" alt="Загрузка" class="loader-img"> <!-- Изменено на pre.png -->
     </div>
 
     <!-- Основной контент - 5 изображений -->
@@ -235,6 +235,31 @@
                     img.addEventListener('error', imageLoaded);
                 }
             });
+            
+            // Загружаем прелоадер отдельно
+            const preloaderImg = document.querySelector('.loader-img');
+            if (preloaderImg.complete) {
+                // Прелоадер уже загружен
+            } else {
+                preloaderImg.addEventListener('load', function() {
+                    console.log('Прелоадер загружен');
+                });
+                preloaderImg.addEventListener('error', function() {
+                    console.log('Ошибка загрузки прелоадера');
+                });
+            }
+            
+            // Загружаем навигацию
+            const navbarImg = document.querySelector('.fixed-navbar img');
+            if (navbarImg) {
+                if (navbarImg.complete) {
+                    // Навигация уже загружена
+                } else {
+                    navbarImg.addEventListener('load', function() {
+                        console.log('Навигация загружена');
+                    });
+                }
+            }
             
             // Если все изображения уже загружены
             if (loadedImages === totalImages) {
